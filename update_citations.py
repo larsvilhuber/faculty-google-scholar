@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from scholarly import scholarly
 from typing import List, Dict, Optional
 import time
+import statistics
 
 
 def load_faculty_data(csv_path: str) -> List[Dict[str, str]]:
@@ -204,12 +205,22 @@ def show_statistics(data: List[Dict[str, str]]) -> None:
     
     if with_citations > 0:
         citations_list = [int(f['citations']) for f in data if f.get('citations', '').strip() and f['citations'].isdigit()]
+        h_index_list = [int(f['h_index']) for f in data if f.get('h_index', '').strip() and f['h_index'].isdigit()]
+        
         if citations_list:
             print(f"\nCitation Statistics:")
             print(f"  Total citations: {sum(citations_list):,}")
             print(f"  Average citations: {sum(citations_list)/len(citations_list):,.0f}")
+            print(f"  Median citations: {statistics.median(citations_list):,.0f}")
             print(f"  Max citations: {max(citations_list):,}")
             print(f"  Min citations: {min(citations_list):,}")
+        
+        if h_index_list:
+            print(f"\nH-Index Statistics:")
+            print(f"  Average h-index: {sum(h_index_list)/len(h_index_list):,.1f}")
+            print(f"  Median h-index: {statistics.median(h_index_list):,.0f}")
+            print(f"  Max h-index: {max(h_index_list)}")
+            print(f"  Min h-index: {min(h_index_list)}")
 
 
 def main():

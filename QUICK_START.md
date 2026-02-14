@@ -151,6 +151,18 @@ This fetches current citation counts and h-index values for all faculty with sch
 python update_citations.py --update-delay-days 0
 ```
 
+**View statistics without updating:**
+```bash
+python update_citations.py --stats-only
+```
+
+This displays comprehensive dataset statistics including:
+- Total faculty and coverage (% with IDs and citation data)
+- Citation statistics: total, average, **median**, max, and min
+- H-index statistics: average, **median**, max, and min
+
+The median values are particularly useful as they represent the "typical" faculty member better than averages when dealing with highly-cited outliers.
+
 ## Time Estimate
 
 - **Automated mode (find_scholar_ids.py)**: ~1-2 minutes per faculty (includes search + verification)

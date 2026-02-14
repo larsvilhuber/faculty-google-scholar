@@ -234,6 +234,44 @@ name,scholar_id,citations,h_index,as_of_date
 Amanda Agan,abc123def,2163,16,2025-11-15
 ```
 
+## Statistics Output
+
+The `update_citations.py` script provides comprehensive statistics about your dataset, including measures of central tendency and distribution. Use `--stats-only` to view statistics without updating data.
+
+### Dataset Overview
+- Total faculty count
+- Number with Google Scholar IDs  
+- Number with citation data
+
+### Citation Statistics
+- **Total citations**: Sum of all citations across faculty
+- **Average citations**: Mean citation count
+- **Median citations**: Middle value (useful for skewed distributions)
+- **Max/Min citations**: Range of citation counts
+
+### H-Index Statistics
+- **Average h-index**: Mean h-index value
+- **Median h-index**: Middle value (often more representative than mean)
+- **Max/Min h-index**: Range of h-index values
+
+**Example output:**
+```
+Citation Statistics:
+  Total citations: 337,750
+  Average citations: 7,506
+  Median citations: 2,626
+  Max citations: 38,813
+  Min citations: 19
+
+H-Index Statistics:
+  Average h-index: 24.9
+  Median h-index: 19
+  Max h-index: 91
+  Min h-index: 2
+```
+
+**Note:** Median values are particularly useful for academic metrics, which often have skewed distributions due to highly-cited researchers. The median represents the "typical" faculty member better than the average when outliers are present.
+
 ## Workflow
 
 ### Initial Setup (One-time)
