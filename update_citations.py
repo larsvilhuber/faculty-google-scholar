@@ -246,6 +246,10 @@ def main():
     print("Google Scholar Citation Update Tool")
     print("="*70)
     
+    print(f"\nConfiguration:")
+    print(f"  Query delay: {args.query_delay} seconds (time between Google Scholar requests)")
+    print(f"  Update delay: {args.update_delay_days} days (skip entries updated within this period)")
+    
     print(f"\nLoading faculty data from {args.csv}...")
     data = load_faculty_data(args.csv)
     print(f"Loaded {len(data)} faculty records")
