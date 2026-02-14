@@ -11,6 +11,7 @@ Usage:
 
 import csv
 import argparse
+import sys
 from datetime import datetime, timedelta
 from scholarly import scholarly
 from typing import List, Dict, Optional
@@ -106,6 +107,29 @@ def needs_update(as_of_date: str, update_delay_days: int) -> bool:
         return True
 
 
+def countdown_timer(seconds: float) -> None:
+    """
+    Display a countdown timer.
+    
+    Args:
+        seconds: Number of seconds to count down
+    """
+    for remaining in range(int(seconds), 0, -1):
+        mins, secs = divmod(remaining, 60)
+        timeformat = f'{mins:02d}:{secs:02d}' if mins > 0 else f'{secs} sec'
+        sys.stdout.write(f'\r      Waiting {timeformat} before next query...')
+        sys.stdout.flush()
+        time.sleep(1)
+    
+    # Handle fractional seconds
+    fractional = seconds - int(seconds)
+    if fractional > 0:
+        time.sleep(fractional)
+    
+    sys.stdout.write('\r' + ' ' * 60 + '\r')  # Clear the line
+    sys.stdout.flush()
+
+
 def update_citations(data: List[Dict[str, str]], csv_path: str, delay: float = 30.0, 
                      update_delay_days: int = 7) -> List[Dict[str, str]]:
     """
@@ -124,6 +148,7 @@ def update_citations(data: List[Dict[str, str]], csv_path: str, delay: float = 3
     skipped_count = 0
     skipped_recent = 0
     error_count = 0
+    first_query = True
     today = datetime.now().strftime('%Y-%m-%d')
     
     print(f"\nStarting update process...")
@@ -147,7 +172,12 @@ def update_citations(data: List[Dict[str, str]], csv_path: str, delay: float = 3
             skipped_recent += 1
             continue
         
+        # Add delay before this query (but not the first one)
+        if not first_query:
+            countdown_timer(delay)
+        
         print(f"  [{i+1}/{len(data)}] Updating {name}...", end=' ')
+        sys.stdout.flush()  # Ensure output appears immediately before long-running query
         
         # Get current metrics from Google Scholar
         metrics = get_scholar_metrics(scholar_id)
@@ -168,13 +198,11 @@ def update_citations(data: List[Dict[str, str]], csv_path: str, delay: float = 3
             print(f"      H-index: {old_h_index} → {metrics['h_index']}")
             
             updated_count += 1
+            first_query = False  # Mark that we've done at least one query
         else:
             print(f"✗ Error")
             error_count += 1
-        
-        # Add delay to avoid rate limiting
-        if i < len(data) - 1:  # Don't delay after the last one
-            time.sleep(delay)
+            first_query = False  # Even on error, mark that we attempted a query
     
     print(f"\n{'='*70}")
     print(f"Update Summary:")

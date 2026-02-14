@@ -145,6 +145,8 @@ This fetches current citation counts and h-index values for all faculty with sch
 - Automatically skips entries updated within the last 7 days
 - Saves progress after each successful update
 - Safe to interrupt and restart (won't re-query recent updates)
+- Shows countdown timer during delays (30 seconds by default between queries)
+- First query starts immediately with no delay
 
 **Force update all entries:**
 ```bash

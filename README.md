@@ -166,6 +166,7 @@ python update_citations.py
 - **Incremental updates**: Saves CSV after each successful update (safe to interrupt and restart)
 - **Smart skipping**: Automatically skips entries updated within the last 7 days
 - **Rate limiting**: 30-second delay between requests to avoid Google Scholar blocks
+- **Countdown timer**: Visual countdown during delays so you know when the next query will start (delays only occur between queries, not before the first one)
 - Records the update date in `as_of_date`
 - Shows before/after values for each faculty member
 
