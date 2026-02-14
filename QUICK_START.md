@@ -141,10 +141,23 @@ python update_citations.py
 
 This fetches current citation counts and h-index values for all faculty with scholar IDs.
 
+**Features:**
+- Automatically skips entries updated within the last 7 days
+- Saves progress after each successful update
+- Safe to interrupt and restart (won't re-query recent updates)
+
+**Force update all entries:**
+```bash
+python update_citations.py --update-delay-days 0
+```
+
 ## Time Estimate
 
-- **Automated mode**: ~1-2 minutes per faculty (includes search + verification)
-- **For 51 faculty**: Approximately 1-2 hours total
+- **Automated mode (find_scholar_ids.py)**: ~1-2 minutes per faculty (includes search + verification)
+- **Update mode (update_citations.py)**: ~30 seconds per entry (default delay to avoid rate limiting)
+- **For 51 faculty**: 
+  - Initial ID search: 1-2 hours
+  - Citation updates: ~25 minutes (first run), ~5 minutes (subsequent runs with smart skipping)
 - You can stop and resume anytime (progress is saved)
 
 ## Resume After Interruption

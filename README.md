@@ -163,26 +163,54 @@ python update_citations.py
 ```
 
 **Features:**
-- Automatically updates citation counts and h-index
+- **Incremental updates**: Saves CSV after each successful update (safe to interrupt and restart)
+- **Smart skipping**: Automatically skips entries updated within the last 7 days
+- **Rate limiting**: 30-second delay between requests to avoid Google Scholar blocks
 - Records the update date in `as_of_date`
 - Shows before/after values for each faculty member
-- Includes rate limiting to avoid Google Scholar blocks
 
-**Options:**
+**Command-Line Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--csv FILE` | Specify CSV file (default: faculty_scholar_data.csv) |
+| `--query-delay SECONDS` | Delay between requests (default: 30.0 seconds) |
+| `--update-delay-days DAYS` | Skip entries updated within N days (default: 7) |
+| `--stats-only` | Show statistics only, without updating |
+
+**Examples:**
 
 Show statistics only (no updates):
 ```bash
 python update_citations.py --stats-only
 ```
 
-Adjust delay between requests (default: 1.0 seconds):
+Update all entries regardless of when last updated:
 ```bash
-python update_citations.py --delay 2.0
+python update_citations.py --update-delay-days 0
 ```
 
-Custom CSV file:
+Use faster delay (not recommended, may cause rate limiting):
 ```bash
-python update_citations.py --csv my_data.csv
+python update_citations.py --query-delay 15
+```
+
+Custom CSV file with conservative delay:
+```bash
+python update_citations.py --csv my_data.csv --query-delay 60
+```
+
+**How Smart Skipping Works:**
+
+By default, the script only updates entries that haven't been updated in the last 7 days. This allows you to:
+- Run the script multiple times without waiting
+- Resume after being rate-limited by Google Scholar
+- Update only stale data without wasting time
+
+The script will tell you which entries are being skipped:
+```
+Will update 10 faculty members (out of 45 with Google Scholar IDs)
+Skipping 35 recently updated (within 7 days)
 ```
 
 ## Data Format

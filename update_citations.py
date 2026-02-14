@@ -11,7 +11,7 @@ Usage:
 
 import csv
 import argparse
-from datetime import datetime
+from datetime import datetime, timedelta
 from scholarly import scholarly
 from typing import List, Dict, Optional
 import time
@@ -80,24 +80,54 @@ def get_scholar_metrics(scholar_id: str) -> Optional[Dict[str, any]]:
         return None
 
 
-def update_citations(data: List[Dict[str, str]], delay: float = 1.0) -> List[Dict[str, str]]:
+def needs_update(as_of_date: str, update_delay_days: int) -> bool:
+    """
+    Check if a faculty member's data needs updating based on the last update date.
+    
+    Args:
+        as_of_date: Date string in YYYY-MM-DD format
+        update_delay_days: Minimum days before re-updating
+        
+    Returns:
+        True if data needs updating, False otherwise
+    """
+    if not as_of_date or not as_of_date.strip():
+        return True  # No date means never updated
+    
+    try:
+        last_update = datetime.strptime(as_of_date.strip(), '%Y-%m-%d')
+        today = datetime.now()
+        days_since_update = (today - last_update).days
+        
+        return days_since_update >= update_delay_days
+    except ValueError:
+        # Invalid date format, treat as needing update
+        return True
+
+
+def update_citations(data: List[Dict[str, str]], csv_path: str, delay: float = 30.0, 
+                     update_delay_days: int = 7) -> List[Dict[str, str]]:
     """
     Update citation counts and h-index for all faculty with scholar_id.
     
     Args:
         data: List of faculty records
+        csv_path: Path to CSV file for incremental saves
         delay: Delay between requests (seconds) to avoid rate limiting
+        update_delay_days: Skip entries updated within this many days
         
     Returns:
         Updated list of faculty records
     """
     updated_count = 0
     skipped_count = 0
+    skipped_recent = 0
     error_count = 0
     today = datetime.now().strftime('%Y-%m-%d')
     
     print(f"\nStarting update process...")
-    print(f"Date: {today}\n")
+    print(f"Date: {today}")
+    print(f"Skipping entries updated within {update_delay_days} days\n")
     
     for i, faculty in enumerate(data):
         scholar_id = faculty.get('scholar_id', '').strip()
@@ -107,6 +137,13 @@ def update_citations(data: List[Dict[str, str]], delay: float = 1.0) -> List[Dic
         if not scholar_id:
             print(f"  [{i+1}/{len(data)}] ⊘ Skipping {name} (no scholar_id)")
             skipped_count += 1
+            continue
+        
+        # Check if recently updated
+        if not needs_update(faculty.get('as_of_date', ''), update_delay_days):
+            as_of = faculty.get('as_of_date', '')
+            print(f"  [{i+1}/{len(data)}] ⊘ Skipping {name} (updated {as_of})")
+            skipped_recent += 1
             continue
         
         print(f"  [{i+1}/{len(data)}] Updating {name}...", end=' ')
@@ -121,6 +158,9 @@ def update_citations(data: List[Dict[str, str]], delay: float = 1.0) -> List[Dic
             faculty['citations'] = str(metrics['citations'])
             faculty['h_index'] = str(metrics['h_index'])
             faculty['as_of_date'] = today
+            
+            # Save immediately after each update
+            save_faculty_data(csv_path, data)
             
             print(f"✓")
             print(f"      Citations: {old_citations} → {metrics['citations']}")
@@ -139,6 +179,7 @@ def update_citations(data: List[Dict[str, str]], delay: float = 1.0) -> List[Dic
     print(f"Update Summary:")
     print(f"  Successfully updated: {updated_count}")
     print(f"  Skipped (no scholar_id): {skipped_count}")
+    print(f"  Skipped (recently updated): {skipped_recent}")
     print(f"  Errors: {error_count}")
     print(f"{'='*70}\n")
     
@@ -182,10 +223,16 @@ def main():
         help='Path to the CSV file (default: faculty_scholar_data.csv)'
     )
     parser.add_argument(
-        '--delay',
+        '--query-delay',
         type=float,
-        default=1.0,
-        help='Delay between requests in seconds (default: 1.0)'
+        default=30.0,
+        help='Delay between requests in seconds (default: 30.0 to avoid rate limiting)'
+    )
+    parser.add_argument(
+        '--update-delay-days',
+        type=int,
+        default=7,
+        help='Skip entries updated within this many days (default: 7)'
     )
     parser.add_argument(
         '--stats-only',
@@ -208,15 +255,24 @@ def main():
         return
     
     # Count how many will be updated
-    to_update = sum(1 for f in data if f.get('scholar_id', '').strip())
+    with_scholar_id = [f for f in data if f.get('scholar_id', '').strip()]
+    needs_updating = [f for f in with_scholar_id 
+                     if needs_update(f.get('as_of_date', ''), args.update_delay_days)]
+    to_update = len(needs_updating)
     
-    if to_update == 0:
+    if len(with_scholar_id) == 0:
         print("\n⚠ No faculty members have Google Scholar IDs!")
         print("Please run find_scholar_ids.py first to populate scholar IDs.")
         return
     
-    print(f"\nWill update {to_update} faculty members with Google Scholar IDs")
-    print(f"(Estimated time: ~{to_update * args.delay / 60:.1f} minutes)\n")
+    if to_update == 0:
+        print(f"\n✓ All {len(with_scholar_id)} faculty with scholar IDs were updated within the last {args.update_delay_days} days.")
+        print(f"Use --update-delay-days 0 to force update all entries.")
+        return
+    
+    print(f"\nWill update {to_update} faculty members (out of {len(with_scholar_id)} with Google Scholar IDs)")
+    print(f"Skipping {len(with_scholar_id) - to_update} recently updated (within {args.update_delay_days} days)")
+    print(f"(Estimated time: ~{to_update * args.query_delay / 60:.1f} minutes)\n")
     
     response = input("Continue? (y/n): ").strip().lower()
     if response != 'y':
@@ -224,9 +280,10 @@ def main():
         return
     
     # Update citations
-    updated_data = update_citations(data, delay=args.delay)
+    updated_data = update_citations(data, csv_path=args.csv, delay=args.query_delay, 
+                                   update_delay_days=args.update_delay_days)
     
-    # Save updated data
+    # Final save to ensure everything is persisted
     save_faculty_data(args.csv, updated_data)
     
     # Show statistics
