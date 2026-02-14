@@ -10,6 +10,17 @@ The script searches Google Scholar using `site:scholar.google.com/citations [Nam
 
 ## Basic Usage
 
+### Recommended: Use Institution Keyword
+
+For better accuracy, add your institution name:
+
+```bash
+source venv/bin/activate  # or: source .venv/bin/activate
+python find_scholar_ids.py --keyword "Cornell"
+```
+
+This searches for `site:scholar.google.com/citations [Name] Cornell` which filters results to your institution.
+
 ### Step 1: Run the script
 
 ```bash
@@ -61,6 +72,19 @@ Your options:
 
 ```
   ✓ Updated Amanda Agan with scholar_id: jysM7c4AAAAJ
+```
+
+## Command-Line Options
+
+- `--keyword "Institution"` - Add keyword to narrow searches (highly recommended)
+- `--csv FILE` - Use different CSV file
+- `--delay SECONDS` - Change delay between requests (default: 2.0)
+- `--non-interactive` - Skip ambiguous results automatically
+- `--manual-only` - Manual entry only, skip automated search
+
+**Example:**
+```bash
+python find_scholar_ids.py --keyword "Cornell economics" --delay 3
 ```
 
 ## Tips for Success

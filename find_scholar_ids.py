@@ -23,17 +23,13 @@ from bs4 import BeautifulSoup
 
 try:
     from ddgs import DDGS
-    from duckduckgo_search.exceptions import DuckDuckGoSearchException, RatelimitException
     DDGS_AVAILABLE = True
 except ImportError:
     try:
         from duckduckgo_search import DDGS
-        from duckduckgo_search.exceptions import DuckDuckGoSearchException, RatelimitException
         DDGS_AVAILABLE = True
     except ImportError:
         DDGS_AVAILABLE = False
-        DuckDuckGoSearchException = Exception  # Fallback
-        RatelimitException = Exception  # Fallback
         print("Warning: ddgs library not available")
 
 try:
@@ -260,12 +256,13 @@ def verify_profile_match(search_name: str, profile_url: str, scholar_id: str) ->
     return None
 
 
-def search_web_for_scholar(name: str, max_results: int = 5, timeout: int = 10) -> List[Dict[str, str]]:
+def search_web_for_scholar(name: str, keyword: str = '', max_results: int = 5, timeout: int = 10) -> List[Dict[str, str]]:
     """
     Search the web for Google Scholar profiles using DuckDuckGo.
     
     Args:
         name: Full name of the person to search
+        keyword: Additional keyword for the search (e.g., institution name)
         max_results: Maximum number of results to return
         timeout: Timeout in seconds for the search
         
@@ -278,6 +275,8 @@ def search_web_for_scholar(name: str, max_results: int = 5, timeout: int = 10) -
     try:
         # Use site-specific search for Google Scholar
         query = f"site:scholar.google.com/citations {name}"
+        if keyword:
+            query += f" {keyword}"
         
         verified_results = []
         seen_scholar_ids = set()  # Track seen IDs to avoid duplicates
@@ -315,12 +314,11 @@ def search_web_for_scholar(name: str, max_results: int = 5, timeout: int = 10) -
         print(f"  ⚠ Search timed out")
         return []
     except Exception as e:
-        # Check if it's a rate limit error
+        print(f"  ⚠ Search error: {type(e).__name__}")
+        # Check if it's a rate limit error and inform user
         error_msg = str(e).lower()
         if '429' in error_msg or 'rate' in error_msg or 'too many' in error_msg:
-            print(f"  ⚠ DuckDuckGo rate limit detected: {e}")
-            raise  # Re-raise for backoff handling
-        print(f"  ⚠ Search error: {type(e).__name__}: {e}")
+            print(f"  ⚠ (Possible rate limiting - consider increasing --delay)")
         return []
 
 
@@ -430,7 +428,7 @@ def manual_id_entry(name: str) -> Optional[str]:
 
 
 def find_missing_ids(data: List[Dict[str, str]], csv_path: str, interactive: bool = True, 
-                     use_automated: bool = True, request_delay: float = 2.0) -> List[Dict[str, str]]:
+                     use_automated: bool = True, request_delay: float = 2.0, keyword: str = '') -> List[Dict[str, str]]:
     """
     Find and fill in missing Google Scholar IDs.
     
@@ -440,6 +438,7 @@ def find_missing_ids(data: List[Dict[str, str]], csv_path: str, interactive: boo
         interactive: Whether to interactively ask for user input
         use_automated: Whether to try automated search first
         request_delay: Delay in seconds between requests (default: 2.0 for polite scraping)
+        keyword: Additional keyword for searches (e.g., institution name)
         
     Returns:
         Updated list of faculty records
@@ -447,7 +446,7 @@ def find_missing_ids(data: List[Dict[str, str]], csv_path: str, interactive: boo
     updated_count = 0
     skipped_count = 0
     still_missing = []
-    current_delay = request_delay  # Track current delay (may increase if rate limited)
+    ambiguous_results = []  # Track ambiguous results: (name, [(url, scholar_name), ...])
     
     for i, faculty in enumerate(data):
         # Skip if scholar_id is already present
@@ -465,21 +464,16 @@ def find_missing_ids(data: List[Dict[str, str]], csv_path: str, interactive: boo
         if use_automated:
             # Try web search first (most reliable)
             if DDGS_AVAILABLE:
-                print(f"  Searching web for Google Scholar profile...")
-                try:
-                    results = search_web_for_scholar(name)
-                    
-                    if results:
-                        print(f"  ✓ Found {len(results)} result(s) via web search")
-                    else:
-                        print(f"  ⚠ No web search results found")
-                except Exception as e:
-                    error_msg = str(e).lower()
-                    if '429' in error_msg or 'rate' in error_msg or 'too many' in error_msg:
-                        print(f"  ⚠ Rate limited by DuckDuckGo - increasing delay")
-                        current_delay = min(current_delay * 2, 10.0)  # Double delay, max 10 seconds
-                        print(f"  New delay between requests: {current_delay}s")
-                    results = []
+                search_msg = f"  Searching web for Google Scholar profile..."
+                if keyword:
+                    search_msg += f" (with keyword: '{keyword}')"
+                print(search_msg)
+                results = search_web_for_scholar(name, keyword=keyword)
+                
+                if results:
+                    print(f"  ✓ Found {len(results)} result(s) via web search")
+                else:
+                    print(f"  ⚠ No web search results found")
             
             # If web search didn't work, try direct Scholar search
             if not results and SCHOLARLY_AVAILABLE:
@@ -576,6 +570,9 @@ def find_missing_ids(data: List[Dict[str, str]], csv_path: str, interactive: boo
                 # Multiple results - present options
                 print(f"\n  Found {len(results)} matching profile(s):\n")
                 
+                # Store for ambiguous report
+                url_list = [(r['url'], r['name']) for r in results]
+                
                 for idx, result in enumerate(results, 1):
                     print(f"  {idx}. {result['name']}")
                     print(f"     Affiliation: {result.get('affiliation', 'N/A')}")
@@ -592,10 +589,12 @@ def find_missing_ids(data: List[Dict[str, str]], csv_path: str, interactive: boo
                             print(f"  ✗ Not updated")
                             skipped_count += 1
                             still_missing.append(name)
+                            ambiguous_results.append((name, url_list))  # Track ambiguous
                             break
                         elif response == 'skip':
                             skipped_count += 1
                             still_missing.append(name)
+                            ambiguous_results.append((name, url_list))  # Track ambiguous
                             print(f"  ⊘ Skipped {name}")
                             break
                         elif response == 'manual':
@@ -627,6 +626,7 @@ def find_missing_ids(data: List[Dict[str, str]], csv_path: str, interactive: boo
                     print(f"  ⚠ Multiple matches found (non-interactive mode) - skipping")
                     skipped_count += 1
                     still_missing.append(name)
+                    ambiguous_results.append((name, url_list))  # Track ambiguous
             
             elif len(results) == 1 and not interactive:
                 # Non-interactive with single result - auto-accept
@@ -654,8 +654,7 @@ def find_missing_ids(data: List[Dict[str, str]], csv_path: str, interactive: boo
         
         # Add delay between searches (polite scraping)
         if i < len(data) - 1 and use_automated:
-            print(f"  Waiting {current_delay}s before next request...")
-            time.sleep(current_delay)
+            time.sleep(request_delay)
     
     print(f"\n{'='*70}")
     print(f"Summary:")
@@ -669,8 +668,21 @@ def find_missing_ids(data: List[Dict[str, str]], csv_path: str, interactive: boo
         for name in still_missing:
             print(f"  - {name}")
         print()
-    
-    return data
+        # Report ambiguous results in tabular format
+    if ambiguous_results:
+        print(f"\nAmbiguous Results (Multiple Matches Found):")
+        print(f"{'='*120}")
+        print(f"{'Faculty Name':<40} | {'Scholar Profile Name':<40} | {'URL':<38}")
+        print(f"{'-'*40}-+-{'-'*40}-+-{'-'*38}")
+        for faculty_name, urls in ambiguous_results:
+            for idx, (url, profile_name) in enumerate(urls):
+                if idx == 0:
+                    print(f"{faculty_name:<40} | {profile_name:<40} | {url:<38}")
+                else:
+                    print(f"{'':<40} | {profile_name:<40} | {url:<38}")
+            print(f"{'-'*40}-+-{'-'*40}-+-{'-'*38}")
+        print()
+        return data
 
 
 def main():
@@ -698,6 +710,12 @@ def main():
         type=float,
         default=2.0,
         help='Delay between requests in seconds (default: 2.0 for polite scraping)'
+    )
+    parser.add_argument(
+        '--keyword',
+        type=str,
+        default='',
+        help='Additional keyword for searches (e.g., "Cornell" to find Cornell faculty)'
     )
     
     args = parser.parse_args()
@@ -735,7 +753,10 @@ def main():
         return
     
     print("\nStarting search for missing Google Scholar IDs...")
-    print(f"Using {args.delay}s delay between requests (DuckDuckGo recommends 1-2s for polite scraping)")
+    search_info = f"Using {args.delay}s delay between requests (DuckDuckGo recommends 1-2s for polite scraping)"
+    if args.keyword:
+        search_info += f"\nUsing keyword filter: '{args.keyword}'"
+    print(search_info)
     print()
     
     # Find and fill missing IDs
@@ -744,7 +765,8 @@ def main():
         csv_path=args.csv,
         interactive=not args.non_interactive,
         use_automated=not args.manual_only,
-        request_delay=args.delay
+        request_delay=args.delay,
+        keyword=args.keyword
     )
     
     # Final save to ensure all data is persisted

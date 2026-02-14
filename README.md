@@ -70,6 +70,11 @@ This script uses web search (via DuckDuckGo) to automatically find Google Schola
 python find_scholar_ids.py
 ```
 
+**For better results (e.g., Cornell faculty):**
+```bash
+python find_scholar_ids.py --keyword "Cornell"
+```
+
 **How it works:**
 1. The script searches `site:scholar.google.com/citations [Name]` for each faculty member
 2. It presents you with matching Google Scholar profiles
@@ -114,6 +119,40 @@ python find_scholar_ids.py --manual-only
 ```
 
 This mode provides you with a search URL, you find the profile in your browser, and paste the scholar_id back into the script.
+
+**Command-Line Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--csv FILE` | Specify CSV file (default: faculty_scholar_data.csv) |
+| `--keyword WORD` | Add keyword to searches (e.g., "Cornell" for institution) |
+| `--delay SECONDS` | Delay between requests (default: 2.0 seconds) |
+| `--non-interactive` | Skip ambiguous results automatically |
+| `--manual-only` | Skip automated search, manual entry only |
+
+**Example with keyword:**
+```bash
+python find_scholar_ids.py --keyword "Cornell economics"
+```
+
+This searches for `site:scholar.google.com/citations [Name] Cornell economics`, which significantly improves accuracy by filtering to the institution.
+
+**Ambiguous Results Report:**
+
+At the end of the run, if multiple profiles were found for any faculty (and you skipped them), the script displays a table:
+
+```
+Ambiguous Results (Multiple Matches Found):
+========================================================================================================================
+Faculty Name                             | Scholar Profile Name                     | URL
+-----------------------------------------+------------------------------------------+----------------------------------------
+John Smith                               | John Smith                               | https://scholar.google.com/.../user1  
+                                         | John M. Smith                            | https://scholar.google.com/.../user2  
+                                         | J. Smith                                 | https://scholar.google.com/.../user3  
+-----------------------------------------+------------------------------------------+----------------------------------------
+```
+
+This helps you review and manually investigate ambiguous cases later.
 
 ### 3. Update Citation Metrics
 
